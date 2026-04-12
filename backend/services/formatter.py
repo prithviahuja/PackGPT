@@ -1,8 +1,8 @@
 def format_context_pack(data: dict) -> str:
     lines = ["=== CONTEXT PACK START ===", ""]
 
-    if data.get("user_goal"):
-        lines += ["[GOAL]", data["user_goal"], ""]
+    if data.get("goal"):
+        lines += ["[GOAL]", data["goal"], ""]
 
     if data.get("tech_stack"):
         lines += ["[STACK]", ", ".join(data["tech_stack"]), ""]
@@ -13,21 +13,21 @@ def format_context_pack(data: dict) -> str:
             lines.append(f"• {c}")
         lines.append("")
 
-    if data.get("decisions"):
+    if data.get("key_decisions"):
         lines += ["[DECISIONS MADE]"]
-        for d in data["decisions"]:
+        for d in data["key_decisions"]:
             lines.append(f"• {d}")
         lines.append("")
 
-    if data.get("problems"):
+    if data.get("problems_faced"):
         lines += ["[KNOWN ISSUES / ERRORS]"]
-        for p in data["problems"]:
+        for p in data["problems_faced"]:
             lines.append(f"• {p}")
         lines.append("")
 
-    if data.get("solutions"):
+    if data.get("solutions_applied"):
         lines += ["[SOLUTIONS / FIXES APPLIED]"]
-        for s in data["solutions"]:
+        for s in data["solutions_applied"]:
             lines.append(f"• {s}")
         lines.append("")
 

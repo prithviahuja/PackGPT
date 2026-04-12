@@ -15,35 +15,35 @@ print(f"DEBUG: GEMINI_API_KEY found: {key is not None}")
 if key:
     genai.configure(api_key=key)
 
-EXTRACTION_SYSTEM_PROMPT = """You are an expert context extraction engine. Your job is to analyze chat conversations between a user and an AI assistant and extract STRUCTURED INTELLIGENCE — not summaries.
+EXTRACTION_SYSTEM_PROMPT = """You are an expert context extraction engine. Your job is to analyze chat conversations or development notes and extract STRUCTURED INTELLIGENCE — not summaries.
 
 You will return STRICT JSON only. No prose. No markdown. No explanation outside the JSON.
 
 Extract the following fields:
-- user_goal: The primary objective the user is trying to achieve (1-3 sentences max, dense)
+- goal: The primary objective being achieved (1-3 sentences max, dense)
 - tech_stack: Array of technologies, frameworks, languages, tools mentioned
-- decisions: Array of architectural/technical decisions made during the conversation
-- problems: Array of errors, bugs, blockers encountered (include error messages if mentioned)
-- solutions: Array of fixes, workarounds, approaches that resolved problems
-- code_snippets: Array of objects {label: "what this does", code: "the actual code"}
+- key_decisions: Array of architectural/technical decisions made
+- problems_faced: Array of errors, bugs, blockers encountered
+- solutions_applied: Array of fixes, workarounds, or approaches that resolved problems
+- code_snippets: Array of objects {"label": "what this does", "code": "the actual code"}
 - constraints: Array of limitations, requirements, or boundaries established
 - notes: Array of important facts, warnings, gotchas, or context that doesn't fit above
 
 Rules:
 - Be DENSE. Omit filler. Every word must carry information.
 - Preserve technical precision. Never paraphrase error messages, function names, or config values.
-- If something was tried and failed, put it in problems. If it succeeded, put it in solutions.
+- If something was tried and failed, put it in problems_faced. If it succeeded, put it in solutions_applied.
 - For code_snippets, only include truly important snippets (not trivial examples).
-- decisions should capture WHY something was chosen, not just what.
+- key_decisions should capture WHY something was chosen, not just what.
 - Merge duplicate information. Never repeat the same fact twice.
 
 Return ONLY this JSON structure:
 {
-  "user_goal": "string",
+  "goal": "string",
   "tech_stack": ["string"],
-  "decisions": ["string"],
-  "problems": ["string"],
-  "solutions": ["string"],
+  "key_decisions": ["string"],
+  "problems_faced": ["string"],
+  "solutions_applied": ["string"],
   "code_snippets": [{"label": "string", "code": "string"}],
   "constraints": ["string"],
   "notes": ["string"]
@@ -52,20 +52,20 @@ Return ONLY this JSON structure:
 MERGE_SYSTEM_PROMPT = """You are a deduplication and merging engine. You receive multiple JSON objects extracted from chunks of the same conversation.
 
 Merge them into ONE unified JSON object. Rules:
-- user_goal: Synthesize into the most complete, accurate single statement
+- goal: Synthesize into the most complete, accurate single statement
 - tech_stack: Union of all arrays, deduplicated
-- decisions, problems, solutions, constraints, notes: Merge arrays, remove duplicates, combine entries that say the same thing
+- key_decisions, problems_faced, solutions_applied, constraints, notes: Merge arrays, remove duplicates, combine entries that say the same thing
 - code_snippets: Keep only the most important/unique ones, remove duplicates
 - Preserve ALL unique information. Do not discard anything that appears in only one chunk.
 - Output STRICT JSON only. Same schema as input.
 
 Schema:
 {
-  "user_goal": "string",
+  "goal": "string",
   "tech_stack": ["string"],
-  "decisions": ["string"],
-  "problems": ["string"],
-  "solutions": ["string"],
+  "key_decisions": ["string"],
+  "problems_faced": ["string"],
+  "solutions_applied": ["string"],
   "code_snippets": [{"label": "string", "code": "string"}],
   "constraints": ["string"],
   "notes": ["string"]
@@ -149,11 +149,11 @@ async def merge_extractions(extractions: list, model: str = "gemini-3-flash-prev
     return _parse_json_response(content)
 
 EMPTY_SCHEMA = {
-    "user_goal": "",
+    "goal": "",
     "tech_stack": [],
-    "decisions": [],
-    "problems": [],
-    "solutions": [],
+    "key_decisions": [],
+    "problems_faced": [],
+    "solutions_applied": [],
     "code_snippets": [],
     "constraints": [],
     "notes": []
