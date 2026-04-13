@@ -102,7 +102,7 @@ This is a production-grade frontend for the Context Compression Engine - a SaaS 
 
 ### `NEXT_PUBLIC_API_URL` (Optional)
 - Backend API URL for compression endpoints
-- Default: `http://localhost:8000`
+- Default: `https://packgpt.onrender.com`
 - Set to your production API URL for deployment
 - Must support `/compress` and `/extract` POST endpoints
 
@@ -258,10 +258,10 @@ All colors use CSS custom properties:
 ### Local Development
 ```bash
 # Set environment variable
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+NEXT_PUBLIC_API_URL=https://packgpt.onrender.com npm run dev
 
 # Or create .env.local
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+echo "NEXT_PUBLIC_API_URL=https://packgpt.onrender.com" > .env.local
 npm run dev
 ```
 

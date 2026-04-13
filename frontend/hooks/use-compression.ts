@@ -37,7 +37,7 @@ export function useCompression() {
     setState({ loading: true, error: null, result: null });
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://packgpt.onrender.com';
       const body: Record<string, string> = {
         input,
         model: model || 'gemini-3-flash-preview',
@@ -74,7 +74,7 @@ export function useCompression() {
     setState({ loading: true, error: null, result: null });
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://packgpt.onrender.com';
       const body: Record<string, string> = {
         input,
         model: model || 'gemini-3-flash-preview',

@@ -61,7 +61,7 @@ export function InputSection({ value, onChange, onSampleInput, disabled = false 
       formData.append('file', file);
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://packgpt.onrender.com';
         const response = await fetch(`${apiUrl}/upload`, {
           method: 'POST',
           body: formData,
