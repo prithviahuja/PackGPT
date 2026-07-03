@@ -11,6 +11,11 @@ import { Loader2 } from 'lucide-react';
 
 const STORAGE_KEY = 'compression-engine';
 
+// How long a persisted draft input stays valid. After this, opening the app
+// starts with an empty textarea instead of restoring the last session's text.
+// History (with its own timestamps) is kept regardless.
+const INPUT_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+
 export default function Page() {
   const [input, setInput] = useState('');
   const [model, setModel] = useState('gemini-3-flash-preview');
@@ -26,8 +31,10 @@ export default function Page() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const { input: savedInput, history: savedHistory, model: savedModel } = JSON.parse(stored);
-        setInput(savedInput || '');
+        const { input: savedInput, history: savedHistory, model: savedModel, savedAt } = JSON.parse(stored);
+        // Only restore the draft input if it isn't stale — otherwise open fresh.
+        const isFresh = typeof savedAt === 'number' && Date.now() - savedAt < INPUT_TTL_MS;
+        setInput(isFresh ? savedInput || '' : '');
         setHistory(savedHistory || []);
         setModel(savedModel || 'gemini-3-flash-preview');
       } catch (e) {
@@ -39,7 +46,7 @@ export default function Page() {
   // Save to localStorage on state change (excludes the API key by design).
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, history, model }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, history, model, savedAt: Date.now() }));
     } catch (e) {
       // Quota exceeded or storage unavailable — degrade gracefully.
       console.error('[CCE] Failed to save to localStorage:', e);

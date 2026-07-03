@@ -20,14 +20,14 @@ interface ControlsSectionProps {
 const DEFAULT_MODELS = [
   {
     id: 'gemini-3-flash-preview',
-    label: 'Gemini 3 Flash',
-    description: 'Large context support, detailed results',
+    label: 'Gemini 3 Flash — best for long inputs',
+    description: 'Large context window — best for long chats & big files. Detailed results.',
     keyHint: 'Uses server Gemini key (or your Gemini key)',
   },
   {
     id: 'llama-3.3-70b-versatile',
-    label: 'Llama 3.3 70B',
-    description: 'Fast & concise results',
+    label: 'Llama 3.3 70B — best for short inputs',
+    description: 'Fast & concise — best for short chats & quick snippets.',
     keyHint: 'Uses server Groq key (or your Groq key)',
   },
 ];
