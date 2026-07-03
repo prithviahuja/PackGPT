@@ -1,19 +1,18 @@
 import json
 import re
-import asyncio
 import os
 from groq import AsyncGroq
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini
-key = os.getenv("GEMINI_API_KEY")
-print(f"DEBUG: GEMINI_API_KEY found: {key is not None}")
-if key:
-    genai.configure(api_key=key)
+# Default cap on generated tokens. The merge step gets a larger budget because
+# it may need to emit a union of many chunk extractions in a single JSON object.
+DEFAULT_MAX_OUTPUT_TOKENS = 2500
+MERGE_MAX_OUTPUT_TOKENS = 8192
 
 EXTRACTION_SYSTEM_PROMPT = """You are an expert context extraction engine. Your job is to analyze chat conversations or development notes and extract STRUCTURED INTELLIGENCE — not summaries.
 
@@ -84,25 +83,35 @@ def _parse_json_response(text: str) -> dict:
             return json.loads(match.group())
         raise ValueError(f"Could not parse JSON from LLM response: {text[:300]}")
 
-async def _call_gemini(model_name: str, system_prompt: str, user_prompt: str, api_key: str = None) -> str:
-    if api_key:
-        genai.configure(api_key=api_key)
-    
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=system_prompt
-    )
-    
-    response = await model.generate_content_async(
-        user_prompt,
-        generation_config=genai.types.GenerationConfig(
+async def _call_gemini(
+    model_name: str,
+    system_prompt: str,
+    user_prompt: str,
+    api_key: str,
+    max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+) -> str:
+    client = genai.Client(api_key=api_key)
+
+    response = await client.aio.models.generate_content(
+        model=model_name,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
             temperature=0.1,
-            max_output_tokens=2500,
-        )
+            max_output_tokens=max_output_tokens,
+            # Force a raw JSON response so parsing is reliable.
+            response_mime_type="application/json",
+        ),
     )
     return response.text
 
-async def _call_groq(model_name: str, system_prompt: str, user_prompt: str, api_key: str) -> str:
+async def _call_groq(
+    model_name: str,
+    system_prompt: str,
+    user_prompt: str,
+    api_key: str,
+    max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+) -> str:
     client = AsyncGroq(api_key=api_key)
     response = await client.chat.completions.create(
         model=model_name,
@@ -111,7 +120,8 @@ async def _call_groq(model_name: str, system_prompt: str, user_prompt: str, api_
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.1,
-        max_tokens=2500,
+        max_tokens=max_output_tokens,
+        response_format={"type": "json_object"},
     )
     return response.choices[0].message.content
 
@@ -136,16 +146,16 @@ async def merge_extractions(extractions: list, model: str = "gemini-3-flash-prev
 
     payload = json.dumps(extractions, indent=2)
     user_prompt = f"Merge these extracted JSON objects into one:\n\n{payload}"
-    
+
     if "gemini" in model.lower():
         key = api_key if api_key and api_key.strip() else os.getenv("GEMINI_API_KEY")
         if not key: raise ValueError("GEMINI_API_KEY not found")
-        content = await _call_gemini(model, MERGE_SYSTEM_PROMPT, user_prompt, key)
+        content = await _call_gemini(model, MERGE_SYSTEM_PROMPT, user_prompt, key, MERGE_MAX_OUTPUT_TOKENS)
     else:
         key = api_key if api_key and api_key.strip() else os.getenv("GROQ_API_KEY")
         if not key: raise ValueError("GROQ_API_KEY not found")
-        content = await _call_groq(model, MERGE_SYSTEM_PROMPT, user_prompt, key)
-        
+        content = await _call_groq(model, MERGE_SYSTEM_PROMPT, user_prompt, key, MERGE_MAX_OUTPUT_TOKENS)
+
     return _parse_json_response(content)
 
 EMPTY_SCHEMA = {
@@ -158,3 +168,51 @@ EMPTY_SCHEMA = {
     "constraints": [],
     "notes": []
 }
+
+_LIST_FIELDS = [
+    "tech_stack",
+    "key_decisions",
+    "problems_faced",
+    "solutions_applied",
+    "constraints",
+    "notes",
+]
+
+
+def union_merge(extractions: list) -> dict:
+    """Deterministic, no-LLM merge used as a fallback when the LLM merge fails.
+
+    Concatenates list fields (de-duplicated, order-preserving), keeps the first
+    non-empty goal, and de-duplicates code snippets by their code body.
+    """
+    merged = {
+        "goal": "",
+        "tech_stack": [],
+        "key_decisions": [],
+        "problems_faced": [],
+        "solutions_applied": [],
+        "code_snippets": [],
+        "constraints": [],
+        "notes": [],
+    }
+    seen_lists = {field: set() for field in _LIST_FIELDS}
+    seen_code = set()
+
+    for extraction in extractions:
+        if not isinstance(extraction, dict):
+            continue
+        if not merged["goal"] and extraction.get("goal"):
+            merged["goal"] = extraction["goal"]
+        for field in _LIST_FIELDS:
+            for item in extraction.get(field, []) or []:
+                key_item = item if isinstance(item, str) else json.dumps(item, sort_keys=True)
+                if key_item not in seen_lists[field]:
+                    seen_lists[field].add(key_item)
+                    merged[field].append(item)
+        for snippet in extraction.get("code_snippets", []) or []:
+            code = snippet.get("code", "") if isinstance(snippet, dict) else ""
+            if code and code not in seen_code:
+                seen_code.add(code)
+                merged["code_snippets"].append(snippet)
+
+    return merged

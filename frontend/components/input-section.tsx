@@ -68,17 +68,22 @@ export function InputSection({ value, onChange, onSampleInput, disabled = false 
         });
 
         if (!response.ok) {
-          throw new Error('Failed to upload file');
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to process file');
         }
 
         const data = await response.json();
-        const content = data.text;
+        const content = data.text ?? '';
         onChange(content);
         setCharCount(content.length);
         setTimeout(autoResizeTextarea, 0);
       } catch (err) {
         console.error('File upload error:', err);
-        alert('Failed to upload/process file. Please try again.');
+        const message = err instanceof Error ? err.message : 'Failed to upload/process file. Please try again.';
+        alert(message);
+      } finally {
+        // Reset so selecting the same file again still triggers onChange.
+        e.target.value = '';
       }
     }
   };
@@ -122,7 +127,7 @@ export function InputSection({ value, onChange, onSampleInput, disabled = false 
         <label>
           <input
             type="file"
-            accept=".txt,.md,.log"
+            accept=".txt,.md,.pdf"
             onChange={handleFileUpload}
             disabled={disabled}
             className="hidden"

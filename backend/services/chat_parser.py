@@ -4,6 +4,7 @@ from typing import List
 
 CHUNK_TOKEN_LIMIT = 2000
 AVG_CHARS_PER_TOKEN = 4
+CHUNK_CHAR_LIMIT = CHUNK_TOKEN_LIMIT * AVG_CHARS_PER_TOKEN
 
 
 @dataclass
@@ -19,11 +20,38 @@ class Chunk:
     raw_text: str
 
 
+# Internal sentinel for a code block. It is renumbered globally per chunk (in
+# document order) when raw_text is assembled, so placeholders line up with the
+# flattened code-block list the compressor builds.
+_CODE_SENTINEL = "\x00CODE_BLOCK\x00"
+
+
 def _extract_code_blocks(text: str):
+    """Replace fenced code blocks with a sentinel placeholder and return the
+    extracted snippets in document order."""
     pattern = re.compile(r"```[\w]*\n?(.*?)```", re.DOTALL)
-    blocks = pattern.findall(text)
-    cleaned = pattern.sub("[CODE_BLOCK]", text)
-    return cleaned, [b.strip() for b in blocks if b.strip()]
+    blocks: List[str] = []
+
+    def _replace(match):
+        block = match.group(1).strip()
+        if not block:
+            return ""
+        blocks.append(block)
+        return _CODE_SENTINEL
+
+    cleaned = pattern.sub(_replace, text)
+    return cleaned, blocks
+
+
+def _number_code_placeholders(text: str) -> str:
+    """Replace sentinels with sequential [CODE_BLOCK_N] markers in order."""
+    counter = {"n": 0}
+
+    def _replace(_match):
+        counter["n"] += 1
+        return f"[CODE_BLOCK_{counter['n']}]"
+
+    return re.sub(re.escape(_CODE_SENTINEL), _replace, text)
 
 
 def _detect_role_lines(text: str) -> List[Message]:
@@ -38,7 +66,8 @@ def _detect_role_lines(text: str) -> List[Message]:
             splits.append((m.start(), m.end(), role))
 
     if not splits:
-        return [Message(role="unknown", content=text.strip())]
+        cleaned, code_blocks = _extract_code_blocks(text.strip())
+        return [Message(role="unknown", content=cleaned.strip(), code_blocks=code_blocks)]
 
     splits.sort(key=lambda x: x[0])
     messages = []
@@ -52,25 +81,51 @@ def _detect_role_lines(text: str) -> List[Message]:
     return messages
 
 
+def _split_oversized_message(msg: Message, limit_chars: int) -> List[Message]:
+    """Split a single message whose content exceeds the chunk limit into several
+    smaller messages so very large inputs (e.g. a marker-less paste) still get
+    chunked instead of producing one giant LLM call."""
+    if len(msg.content) <= limit_chars:
+        return [msg]
+
+    pieces: List[Message] = []
+    content = msg.content
+    for i in range(0, len(content), limit_chars):
+        slice_text = content[i:i + limit_chars]
+        # Attach the original code blocks only to the first piece to avoid
+        # duplicating them across every slice.
+        code = msg.code_blocks if i == 0 else []
+        pieces.append(Message(role=msg.role, content=slice_text, code_blocks=code))
+    return pieces
+
+
 def _chunk_messages(messages: List[Message], token_limit: int) -> List[Chunk]:
+    limit_chars = token_limit * AVG_CHARS_PER_TOKEN
+
+    # Break apart any single message that is larger than the chunk budget.
+    normalized: List[Message] = []
+    for msg in messages:
+        normalized.extend(_split_oversized_message(msg, limit_chars))
+
     chunks = []
     current: List[Message] = []
     current_chars = 0
-    limit_chars = token_limit * AVG_CHARS_PER_TOKEN
 
-    for msg in messages:
+    def _build_raw(msgs: List[Message]) -> str:
+        joined = "\n".join(f"[{m.role.upper()}]: {m.content}" for m in msgs)
+        return _number_code_placeholders(joined)
+
+    for msg in normalized:
         msg_len = len(msg.content) + sum(len(c) for c in msg.code_blocks)
         if current_chars + msg_len > limit_chars and current:
-            raw = "\n".join(f"[{m.role.upper()}]: {m.content}" for m in current)
-            chunks.append(Chunk(messages=current, raw_text=raw))
+            chunks.append(Chunk(messages=current, raw_text=_build_raw(current)))
             current = []
             current_chars = 0
         current.append(msg)
         current_chars += msg_len
 
     if current:
-        raw = "\n".join(f"[{m.role.upper()}]: {m.content}" for m in current)
-        chunks.append(Chunk(messages=current, raw_text=raw))
+        chunks.append(Chunk(messages=current, raw_text=_build_raw(current)))
 
     return chunks
 

@@ -82,9 +82,9 @@ export function ResultsDisplay({ result }: ResultsDisplayProps) {
     <div className="space-y-6 animate-in fade-in-50 duration-500">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Token Count" value={result.token_count || '-'} />
-        <StatCard label="Compression Ratio" value={`${result.compression_ratio?.toFixed(1)}x` || '-'} />
-        <StatCard label="Processing Time" value={`${result.processing_time?.toFixed(1)}s` || '-'} />
+        <StatCard label="Token Count" value={result.token_count != null ? `~${result.token_count.toLocaleString()}` : '-'} />
+        <StatCard label="Compression Ratio" value={result.compression_ratio != null ? `${result.compression_ratio.toFixed(1)}x` : '-'} />
+        <StatCard label="Processing Time" value={result.processing_time != null ? `${result.processing_time.toFixed(1)}s` : '-'} />
       </div>
 
       {/* Tabs */}

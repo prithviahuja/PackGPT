@@ -29,3 +29,10 @@ build/
 
 # Cache
 .cache/
+
+# Archives
+*.zip
+
+# PowerShell
+*.ps1
+*.psm1

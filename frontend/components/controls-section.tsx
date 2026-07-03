@@ -15,41 +15,20 @@ interface ControlsSectionProps {
   onModelChange?: (model: string) => void;
 }
 
-// Default models that use server-side API keys
+// Models the backend can actually serve. Each can run on the server-side key
+// or on a personal key of the matching provider (Gemini or Groq) if supplied.
 const DEFAULT_MODELS = [
   {
     id: 'gemini-3-flash-preview',
     label: 'Gemini 3 Flash',
     description: 'Large context support, detailed results',
-    keyHint: 'Uses server Gemini key',
+    keyHint: 'Uses server Gemini key (or your Gemini key)',
   },
   {
     id: 'llama-3.3-70b-versatile',
     label: 'Llama 3.3 70B',
     description: 'Fast & concise results',
-    keyHint: 'Uses server Groq key',
-  },
-];
-
-// Extra models unlocked when a personal API key is provided
-const PERSONAL_KEY_MODELS = [
-  {
-    id: 'gpt-4o',
-    label: 'GPT-4o',
-    description: 'OpenAI — requires personal API key',
-    keyHint: 'Requires your OpenAI key',
-  },
-  {
-    id: 'gpt-4o-mini',
-    label: 'GPT-4o Mini',
-    description: 'OpenAI — fast & cheap',
-    keyHint: 'Requires your OpenAI key',
-  },
-  {
-    id: 'claude-3-5-sonnet-20241022',
-    label: 'Claude 3.5 Sonnet',
-    description: 'Anthropic — requires personal API key',
-    keyHint: 'Requires your Anthropic key',
+    keyHint: 'Uses server Groq key (or your Groq key)',
   },
 ];
 
@@ -66,16 +45,7 @@ export function ControlsSection({
   const [showApiKey, setShowApiKey] = useState(false);
 
   const hasPersonalKey = apiKey.trim().length > 0;
-  const allModels = hasPersonalKey
-    ? [...DEFAULT_MODELS, ...PERSONAL_KEY_MODELS]
-    : DEFAULT_MODELS;
-
-  // Reset to a default model if the user clears their API key and was on a personal-key model
-  useEffect(() => {
-    if (!hasPersonalKey && PERSONAL_KEY_MODELS.some((m) => m.id === model)) {
-      onModelChange?.('gemini-3-flash-preview');
-    }
-  }, [hasPersonalKey, model, onModelChange]);
+  const allModels = DEFAULT_MODELS;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -102,29 +72,13 @@ export function ControlsSection({
             disabled={disabled || loading}
             className="w-full px-3 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#e94560]/50 focus:border-[#e94560]/50 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm smooth-transition hover:border-white/[0.12]"
           >
-            <optgroup label="Server-Hosted (No Key Required)">
-              {DEFAULT_MODELS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-[#161b22] text-foreground">
-                  {m.label}
-                </option>
-              ))}
-            </optgroup>
-            {hasPersonalKey && (
-              <optgroup label="Personal Key Models">
-                {PERSONAL_KEY_MODELS.map((m) => (
-                  <option key={m.id} value={m.id} className="bg-[#161b22] text-foreground">
-                    {m.label}
-                  </option>
-                ))}
-              </optgroup>
-            )}
+            {DEFAULT_MODELS.map((m) => (
+              <option key={m.id} value={m.id} className="bg-[#161b22] text-foreground">
+                {m.label}
+              </option>
+            ))}
           </select>
           <p className="text-xs text-muted-foreground mt-1.5">{selectedModel?.description}</p>
-          {!hasPersonalKey && (
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              💡 Enter your API key below to unlock GPT-4 & Claude models
-            </p>
-          )}
         </div>
 
         {/* API Key */}
@@ -154,7 +108,7 @@ export function ControlsSection({
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
               {hasPersonalKey
-                ? 'Using your personal key — GPT-4 & Claude now available'
+                ? 'Using your personal key for the selected provider (Gemini or Groq)'
                 : 'Uses server-side key if left blank'}
             </p>
           </div>

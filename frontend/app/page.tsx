@@ -20,26 +20,31 @@ export default function Page() {
   const { loading, error, result, compress, extractJson, reset } = useCompression();
   const { toast } = useToast();
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount.
+  // Note: the API key is intentionally NOT persisted — it stays in memory only.
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const { input: savedInput, history: savedHistory, model: savedModel, apiKey: savedApiKey } = JSON.parse(stored);
+        const { input: savedInput, history: savedHistory, model: savedModel } = JSON.parse(stored);
         setInput(savedInput || '');
         setHistory(savedHistory || []);
         setModel(savedModel || 'gemini-3-flash-preview');
-        setApiKey(savedApiKey || '');
       } catch (e) {
         console.error('[CCE] Failed to load from localStorage:', e);
       }
     }
   }, []);
 
-  // Save to localStorage on state change
+  // Save to localStorage on state change (excludes the API key by design).
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, history, model, apiKey }));
-  }, [input, history, model, apiKey]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, history, model }));
+    } catch (e) {
+      // Quota exceeded or storage unavailable — degrade gracefully.
+      console.error('[CCE] Failed to save to localStorage:', e);
+    }
+  }, [input, history, model]);
 
   // Show errors as toasts
   useEffect(() => {
